@@ -15,14 +15,14 @@
         }
 
         h1 {
-            color: #2E8B57;
+            color: #333;
             text-align: center;
             font-size: 2.5rem;
             margin-bottom: 20px;
         }
 
         .collection-section {
-            background-color: white;
+            background-color: #fff;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -30,16 +30,18 @@
         }
 
         .highlight-today {
-            background-color: #FFEB3B;
+            background-color: #333;
             font-weight: bold;
+			color: #fff;
             padding: 10px;
             border-radius: 5px;
             margin-bottom: 10px;
         }
 
         .highlight-tomorrow {
-            background-color: #FFCDD2;
+            background-color: #555;
             font-weight: bold;
+			color: #fff;
             padding: 10px;
             border-radius: 5px;
             margin-bottom: 10px;
@@ -53,9 +55,9 @@
         .collection-list li {
             padding: 10px;
             margin: 5px 0;
-            border: 1px solid #ccc;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            background-color: #f9f9f9;
+            background-color: #fff; /* Light red for attention */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -63,13 +65,18 @@
         }
 
         .collection-list li:hover {
-            background-color: #e0f7fa;
+            background-color: #f7f7f7;
         }
 
         .waste-checkbox {
             margin-left: 10px;
+			transform: scale(1.5);
         }
-
+		
+		.waste-checkbox:checked {
+			accent-color: #b0b0b0; /* Light gray */
+		}
+		
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -180,7 +187,7 @@
                 return date && date.toDateString() === targetDate.toDateString();
             }
 
-            document.getElementById('today-date').innerText = `Dnes: ${formatDate(today)} (${getDayOfWeek(today)})`;
+            document.getElementById('today-date').innerText = `${formatDate(today)} (${getDayOfWeek(today)})`;
 
             nextRecycled = getNextDate(recycledWasteDates);
 			nextRecycled.setHours(0, 0, 0, 0);
@@ -208,13 +215,15 @@
             wasteToday.forEach(waste => {
                 const li = document.createElement('li');
                 li.innerHTML = `${waste.type} <input type="checkbox" class="waste-checkbox" data-type="${waste.type}">`;
-                document.getElementById('waste-today-list').appendChild(li);
+                li.style.cssText = "background-color: #ffcccc";
+				document.getElementById('waste-today-list').appendChild(li);
             });
 
             wasteTomorrow.forEach(waste => {
                 const li = document.createElement('li');
                 li.innerHTML = `${waste.type} <input type="checkbox" class="waste-checkbox" data-type="${waste.type}">`;
-                document.getElementById('waste-tomorrow-list').appendChild(li);
+                li.style.cssText = "background-color: #ffcccc";
+				document.getElementById('waste-tomorrow-list').appendChild(li);
             });
 			
 			
@@ -237,6 +246,15 @@
 				'Záhradný bio odpad': nextGardenBio,
 				'Kuchynský bio odpad': nextKitchenBio
 			};
+			
+			function updateHighlight(checkbox) {
+				const li = checkbox.closest('li');
+				if (!checkbox.checked) {
+					li.style.cssText = "background-color: #ffcccc";
+				} else {
+					li.style.cssText = "background-color: #fff"; // Remove highlight
+				}
+			}
 
 			// Restore checkbox states
 			Object.keys(nextCollectionDates).forEach(type => {
@@ -247,6 +265,7 @@
 					if (nextCollectionDates[type] <= checkedDate) {
 						document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
 							checkbox.checked = true;
+							updateHighlight(checkbox);
 						});
 					}
 				}
@@ -265,6 +284,8 @@
 						// Remove the collection date when unchecked
 						checkedStates[type] = false;
 					}
+					
+					updateHighlight(this);
 
 					localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));
 				});
@@ -292,8 +313,9 @@
 </head>
 <body>
     <h1>Zber odpadu</h1>
+	<h2 id="today-date", align="center"></h2>
     <div class="collection-section">
-        <p id="today-date"></p>
+        
         <p id="waste-today" class="highlight-today">Odpad zbieraný dnes:</p>
         <ul id="waste-today-list" class="collection-list"></ul>
         <p id="waste-tomorrow" class="highlight-tomorrow">Odpad zbieraný zajtra:</p>
