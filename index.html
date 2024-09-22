@@ -182,11 +182,15 @@
 
             document.getElementById('today-date').innerText = `Dnes: ${formatDate(today)} (${getDayOfWeek(today)})`;
 
-            const nextRecycled = getNextDate(recycledWasteDates);
-            const nextCommon = getNextCommonWaste();
-            const nextGardenBio = getNextGardenBioWaste();
-            const nextKitchenBio = getNextKitchenBioWaste();
-
+            nextRecycled = getNextDate(recycledWasteDates);
+			nextRecycled.setHours(0, 0, 0, 0);
+            nextCommon = getNextCommonWaste();
+            nextCommon.setHours(0, 0, 0, 0);
+			nextGardenBio = getNextGardenBioWaste();
+			nextGardenBio.setHours(0, 0, 0, 0);
+            nextKitchenBio = getNextKitchenBioWaste();
+			nextKitchenBio.setHours(0, 0, 0, 0);
+			
             const wasteToday = [
                 { type: 'Triedený odpad', date: nextRecycled },
                 { type: 'Zmiešaný odpad', date: nextCommon },
@@ -238,9 +242,13 @@
 			Object.keys(nextCollectionDates).forEach(type => {
 				// Keep checkbox checked if it was previously checked or it's the collection day
 				if ((checkedStates[type])) {
-					document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
-						checkbox.checked = true;
-					});
+					checkedDate = Date.parse(checkedStates[type]);
+					console.log(checkedDate);
+					if (nextCollectionDates[type] <= checkedDate) {
+						document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
+							checkbox.checked = true;
+						});
+					}
 				}
 			});
 
@@ -252,13 +260,10 @@
 
 					if (checked) {
 						// Save the collection date when checked
-						if (!checkedStates[type])
-							checkedStates[type] = true;
+						checkedStates[type] = nextCollectionDates[type].toString();
 					} else {
 						// Remove the collection date when unchecked
-						if (checkedStates[type]) {
-							checkedStates[type] = false;
-						}
+						checkedStates[type] = false;
 					}
 
 					localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));
@@ -266,22 +271,8 @@
 			});
 			
 			
-			// Reset checkbox states the day after the collection day
-			Object.keys(nextCollectionDates).forEach(type => {
-				const day_after_tomorrow = new Date();
-				day_after_tomorrow.setDate(day_after_tomorrow.getDate() + 2)
-				const collectionDate = nextCollectionDates[type];
-				if (day_after_tomorrow <= collectionDate) {					
-						// Clear the checked state and localStorage
-					checkedStates[type] = false;
-					document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
-						checkbox.checked = false;
-					});
-					
-				}
-			});
-			
-			localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));			
+
+			localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));
 
 			// Auto-refresh if the date changes
             function checkForDateChange() {
