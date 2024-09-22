@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harmonogram zberu odpadu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #2E8B57;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .collection-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .highlight-today {
+            background-color: #FFEB3B;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .highlight-tomorrow {
+            background-color: #FFCDD2;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .collection-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .collection-list li {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        .collection-list li:hover {
+            background-color: #e0f7fa;
+        }
+
+        .waste-checkbox {
+            margin-left: 10px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .collection-section {
+                padding: 15px;
+            }
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- UPDATE THESE WHEN THE WASTE COLLECTION SCHEDULE CHANGES ---
+            const recycledWasteDates = [
+                "17.1.24", "14.2.24", "13.3.24", "10.4.24", "8.5.24", "5.6.24",
+                "3.7.24", "31.7.24", "28.8.24", "25.9.24", "23.10.24", "20.11.24", "18.12.24"
+            ];
+            const COMMON_WASTE_DAY = 4; // Thursday (0 = Sunday)
+            const GARDEN_BIO_WASTE_DAY = 5; // Friday
+			const KITCHEN_BIO_AFTER_END = 6; // Saturday
+            const KITCHEN_BIO_WASTE_DAYS = [2, 6]; // Tuesday and Saturday
+            const gardenBioWasteStart = new Date(2024, 1, 29); // 29.2.2024
+            const gardenBioWasteEnd = new Date(2024, 10, 30); // 30.11.2024
+            const kitchenBioWasteStart = new Date(2024, 2, 20); // 20.3.2024
+            const kitchenBioWasteEnd = new Date(2024, 10, 30); // 30.11.2024
+            // --- END OF SCHEDULE UPDATES ---
+			
+			const today = new Date();
+			const todayString = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+			const checkedStates = JSON.parse(localStorage.getItem('wasteCheckboxes')) || {};
+
+            function parseDate(dateStr) {
+                const parts = dateStr.split('.');
+                return new Date(parseInt("20" + parts[2]), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+            }
+
+			function formatDate(date) {
+				const day = date.getDate();
+				const month = date.toLocaleDateString('sk-SK', { month: 'short' }).charAt(0).toUpperCase() + date.toLocaleDateString('sk-SK', { month: 'short' }).slice(1);
+				return `${day}. ${month}`;
+			}
+
+            function getDayOfWeek(date) {
+                return date.toLocaleDateString('sk-SK', { weekday: 'long' });
+            }
+
+            function isEvenWeek(date) {
+                const oneJan = new Date(date.getFullYear(), 0, 1);
+                const numberOfDays = Math.floor((date - oneJan) / (24 * 60 * 60 * 1000));
+                return Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7) % 2 === 0;
+            }
+
+            function getNextDate(dates) {
+                const today = new Date();
+				today.setHours(0,0,0,0);
+                return dates.map(parseDate).find(date => date >= today);
+            }
+
+            function getNextCommonWaste() {
+                const today = new Date();
+                const nextThursday = new Date(today);
+                nextThursday.setDate(today.getDate() + (COMMON_WASTE_DAY - today.getDay() + 7) % 7);
+                return nextThursday;
+            }
+
+            function getNextGardenBioWaste() {
+                const today = new Date();
+                if (today >= gardenBioWasteStart && today <= gardenBioWasteEnd) {
+                    const nextFriday = new Date(today);
+                    nextFriday.setDate(today.getDate() + (GARDEN_BIO_WASTE_DAY - today.getDay() + 7) % 7);
+                    if (isEvenWeek(nextFriday)) return nextFriday;
+                    nextFriday.setDate(nextFriday.getDate() + 7); // Skip one week for next even week
+                    return nextFriday;
+                }
+                return null;
+            }
+
+			function getNextKitchenBioWaste() {
+				const today = new Date();
+				if (today < kitchenBioWasteStart) {
+					// If today is before the start date, return the first Saturday after today
+					const nextSaturday = new Date(today);
+					nextSaturday.setDate(today.getDate() + (6 - today.getDay() + 7) % 7); // Saturday
+					return nextSaturday;
+				} else if (today <= kitchenBioWasteEnd) {
+					// If today is within the interval, get the next valid collection dates
+					const nextWasteDates = KITCHEN_BIO_WASTE_DAYS.map(day => {
+						const nextDate = new Date(today);
+						nextDate.setDate(today.getDate() + (day - today.getDay() + 7) % 7);
+						return nextDate;
+					});
+					return nextWasteDates.filter(date => date >= kitchenBioWasteStart).sort((a, b) => a - b)[0];
+				} else {
+					// If today is after the end date, return the next Saturday
+					const nextSaturday = new Date(today);
+					nextSaturday.setDate(today.getDate() + (KITCHEN_BIO_AFTER_END - today.getDay() + 7) % 7); // Saturday
+					return nextSaturday;
+				}
+			}
+
+            function checkIfTodayOrTomorrow(date, dayOffset) {
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + dayOffset); // dayOffset: 0 for today, 1 for tomorrow
+                return date && date.toDateString() === targetDate.toDateString();
+            }
+
+            document.getElementById('today-date').innerText = `Dnes: ${formatDate(today)} (${getDayOfWeek(today)})`;
+
+            const nextRecycled = getNextDate(recycledWasteDates);
+            const nextCommon = getNextCommonWaste();
+            const nextGardenBio = getNextGardenBioWaste();
+            const nextKitchenBio = getNextKitchenBioWaste();
+
+            const wasteToday = [
+                { type: 'Triedený odpad', date: nextRecycled },
+                { type: 'Zmiešaný odpad', date: nextCommon },
+                { type: 'Záhradný bio odpad', date: nextGardenBio },
+                { type: 'Kuchynský bio odpad', date: nextKitchenBio }
+            ].filter(waste => checkIfTodayOrTomorrow(waste.date, 0));
+
+            const wasteTomorrow = [
+                { type: 'Triedený odpad', date: nextRecycled },
+                { type: 'Zmiešaný odpad', date: nextCommon },
+                { type: 'Záhradný bio odpad', date: nextGardenBio },
+                { type: 'Kuchynský bio odpad', date: nextKitchenBio }
+            ].filter(waste => checkIfTodayOrTomorrow(waste.date, 1));
+
+            wasteToday.forEach(waste => {
+                const li = document.createElement('li');
+                li.innerHTML = `${waste.type} <input type="checkbox" class="waste-checkbox" data-type="${waste.type}">`;
+                document.getElementById('waste-today-list').appendChild(li);
+            });
+
+            wasteTomorrow.forEach(waste => {
+                const li = document.createElement('li');
+                li.innerHTML = `${waste.type} <input type="checkbox" class="waste-checkbox" data-type="${waste.type}">`;
+                document.getElementById('waste-tomorrow-list').appendChild(li);
+            });
+			
+			
+			function formatDateWithDay(date) {
+				const day = date.getDate();
+				const month = date.toLocaleDateString('sk-SK', { month: 'long' });
+				const dayOfWeek = date.toLocaleDateString('sk-SK', { weekday: 'long' });
+				return `${day}. ${month} (${dayOfWeek})`;
+			}
+			
+			// Display the next dates or "Nenastavené" if none
+			document.getElementById('next-recycled').innerText = `Triedený odpad: ${nextRecycled ? formatDateWithDay(nextRecycled) : "Nenastavené"}`;
+			document.getElementById('next-common').innerText = `Zmiešaný odpad: ${nextCommon ? formatDateWithDay(nextCommon) : "Nenastavené"}`;
+			document.getElementById('next-garden-bio').innerText = `Záhradný bio odpad: ${nextGardenBio ? formatDateWithDay(nextGardenBio) : "Nenastavené"}`;
+			document.getElementById('next-kitchen-bio').innerText = `Kuchynský bio odpad: ${nextKitchenBio ? formatDateWithDay(nextKitchenBio) : "Nenastavené"}`;
+
+			const nextCollectionDates = {
+				'Triedený odpad': nextRecycled,
+				'Zmiešaný odpad': nextCommon,
+				'Záhradný bio odpad': nextGardenBio,
+				'Kuchynský bio odpad': nextKitchenBio
+			};
+
+			// Restore checkbox states
+			Object.keys(nextCollectionDates).forEach(type => {
+				// Keep checkbox checked if it was previously checked or it's the collection day
+				if ((checkedStates[type])) {
+					document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
+						checkbox.checked = true;
+					});
+				}
+			});
+
+			// Save checkbox states when they change
+			document.querySelectorAll('.waste-checkbox').forEach(checkbox => {
+				checkbox.addEventListener('change', function() {
+					const type = this.getAttribute('data-type');
+					const checked = this.checked;
+
+					if (checked) {
+						// Save the collection date when checked
+						if (!checkedStates[type])
+							checkedStates[type] = true;
+					} else {
+						// Remove the collection date when unchecked
+						if (checkedStates[type]) {
+							checkedStates[type] = false;
+						}
+					}
+
+					localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));
+				});
+			});
+			
+			
+			// Reset checkbox states the day after the collection day
+			Object.keys(nextCollectionDates).forEach(type => {
+				const day_after_tomorrow = new Date();
+				day_after_tomorrow.setDate(day_after_tomorrow.getDate() + 2)
+				const collectionDate = nextCollectionDates[type];
+				if (day_after_tomorrow <= collectionDate) {					
+						// Clear the checked state and localStorage
+					checkedStates[type] = false;
+					document.querySelectorAll(`.waste-checkbox[data-type="${type}"]`).forEach(checkbox => {
+						checkbox.checked = false;
+					});
+					
+				}
+			});
+			
+			localStorage.setItem('wasteCheckboxes', JSON.stringify(checkedStates));			
+
+			// Auto-refresh if the date changes
+            function checkForDateChange() {
+                const currentDate = new Date().toDateString();
+                const storedDate = localStorage.getItem('currentDate');
+                if (storedDate !== currentDate) {
+                    localStorage.setItem('currentDate', currentDate);
+                    location.reload();
+                }
+            }
+			
+			localStorage.setItem('currentDate', todayString);
+            setInterval(checkForDateChange, 60000); // Check every minute
+			
+        });
+    </script>
+</head>
+<body>
+    <h1>Harmonogram zberu odpadu</h1>
+    <div class="collection-section">
+        <p id="today-date"></p>
+        <p id="waste-today" class="highlight-today">Odpad zbieraný dnes:</p>
+        <ul id="waste-today-list" class="collection-list"></ul>
+        <p id="waste-tomorrow" class="highlight-tomorrow">Odpad zbieraný zajtra:</p>
+        <ul id="waste-tomorrow-list" class="collection-list"></ul>
+    </div>
+
+    <h2>Najbližšie dni zberu</h2>
+    <ul class="collection-list">
+        <li id="next-recycled"></li>
+        <li id="next-common"></li>
+        <li id="next-garden-bio"></li>
+        <li id="next-kitchen-bio"></li>
+    </ul>
+</body>
+</html>
